@@ -5,6 +5,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -15,6 +16,7 @@ import com.chaos.view.PinView;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.FirebaseException;
+import com.google.firebase.FirebaseTooManyRequestsException;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
@@ -22,7 +24,9 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.PhoneAuthCredential;
 import com.google.firebase.auth.PhoneAuthProvider;
 import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
 
+import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
@@ -42,12 +46,10 @@ public class MainActivity extends AppCompatActivity {
     private PhoneAuthProvider.OnVerificationStateChangedCallbacks mCallbacks;
     private PhoneAuthProvider.ForceResendingToken mResendToken;
 
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
 
         phoneText = findViewById(R.id.phoneId);
         passText = findViewById(R.id.passId);
@@ -59,15 +61,12 @@ public class MainActivity extends AppCompatActivity {
 
         mAuth = FirebaseAuth.getInstance();
 
-
-        mAuth = FirebaseAuth.getInstance();
-
         signUpBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (!phoneText.getText().toString().isEmpty() && !passText.getText().toString().isEmpty()) {
+                if (!phoneText.getText().toString().isEmpty() && !passText.getText().toString().isEmpty()){
 
-                    phoneNumber = "+88" + phoneText.getText().toString();
+                    phoneNumber = "+88"+phoneText.getText().toString();
 
                     PhoneAuthProvider.getInstance().verifyPhoneNumber(
                             phoneNumber,        // Phone number to verify
@@ -79,7 +78,8 @@ public class MainActivity extends AppCompatActivity {
                     registyerLay.setVisibility(View.GONE);
                     otpLay.setVisibility(View.VISIBLE);
 
-                } else {
+                }
+                else {
                     Toast.makeText(MainActivity.this, "invalid", Toast.LENGTH_SHORT).show();
                 }
             }
@@ -89,11 +89,12 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 String verifyCode = otpView.getText().toString();
-                if (verifyCode.isEmpty()) {
+                if (verifyCode.isEmpty()){
                     Toast.makeText(MainActivity.this, "Enter Verify Code", Toast.LENGTH_SHORT).show();
-                } else {
+                }
+                else {
 
-                    PhoneAuthCredential credential = PhoneAuthProvider.getCredential(mVerificationId, verifyCode);
+                    PhoneAuthCredential credential = PhoneAuthProvider.getCredential(mVerificationId,verifyCode);
                     signInWithPhoneAuthCredential(credential, phoneNumber, passText.getText().toString());
 
                 }
@@ -102,10 +103,9 @@ public class MainActivity extends AppCompatActivity {
 
         mCallbacks = new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
 
-            private FirebaseException e;
-
             @Override
             public void onVerificationCompleted(PhoneAuthCredential credential) {
+
                 String passwordText = passText.getText().toString();
 
                 signInWithPhoneAuthCredential(credential, phoneNumber, passwordText);
@@ -115,13 +115,11 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onVerificationFailed(FirebaseException e) {
-
-                this.e = e;
             }
 
             @Override
             public void onCodeSent(@NonNull String verificationId,
-                                   @NonNull PhoneAuthProvider.ForceResendingToken token) {
+                                   @NonNull PhoneAuthProvider.ForceResendingToken token) {  
                 mVerificationId = verificationId;
                 mResendToken = token;
 
@@ -132,7 +130,7 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void signInWithPhoneAuthCredential(PhoneAuthCredential credential, String phone, String pass) {
+    private void signInWithPhoneAuthCredential(PhoneAuthCredential credential, final String phone, final String pass) {
         mAuth.signInWithCredential(credential)
                 .addOnCompleteListener(this, new OnCompleteListener<AuthResult>() {
                     @Override
@@ -141,13 +139,30 @@ public class MainActivity extends AppCompatActivity {
                             // Sign in success, update UI with the signed-in user's information
                             //Log.d(TAG, "signInWithCredential:success");
 
-                            Toast.makeText(MainActivity.this, "success", Toast.LENGTH_SHORT).show();
+                            FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+                            String uId = currentUser.getUid();
 
-                            Intent intent = new Intent(MainActivity.this, Success.class);
-                            startActivity(intent);
-                            finish();
+                            mDatabase = FirebaseDatabase.getInstance().getReference().child("User").child(uId);
 
-                            FirebaseUser user = task.getResult().getUser();
+                            HashMap<String, String> userMap = new HashMap<>();
+                            userMap.put("Phone Number", phone);
+                            userMap.put("password", pass);
+
+                            mDatabase.setValue(userMap).addOnCompleteListener(new OnCompleteListener<Void>() {
+                                @Override
+                                public void onComplete(@NonNull Task<Void> task) {
+                                    if (task.isSuccessful()){
+
+                                        Toast.makeText(MainActivity.this, "save success", Toast.LENGTH_SHORT).show();
+
+                                        Intent intent = new Intent(MainActivity.this, Welcome.class);
+                                        startActivity(intent);
+                                        finish();
+                                    }
+                                }
+                            });
+
+
                             // ...
                         } else {
                             // Sign in failed, display a message and update the UI
